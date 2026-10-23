@@ -88,6 +88,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         backButton.toolTip = "后退 ⌘["; forwardButton.toolTip = "前进 ⌘]"
         let up = makeButton("arrow.up", "上级目录 ⌘↑", #selector(goUp))
         let refresh = makeButton("arrow.clockwise", "刷新 ⌘R", #selector(reload))
+        let terminal = makeButton("terminal", "在终端中打开当前目录（新建窗口）", #selector(openTerminal))
         refreshIndicator.style = .spinning; refreshIndicator.controlSize = .small; refreshIndicator.isDisplayedWhenStopped = false
         pathField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         pathField.controlSize = .small
@@ -106,7 +107,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         search.sendsSearchStringImmediately = true
         search.target = self; search.action = #selector(filterChanged)
         search.controlSize = .small; search.font = .systemFont(ofSize: 11)
-        let top = NSStackView(views: [heading, places, backButton, forwardButton, up, pathButton, pathField, refreshIndicator, refresh])
+        let top = NSStackView(views: [heading, places, backButton, forwardButton, up, pathButton, pathField, terminal, refreshIndicator, refresh])
         top.spacing = 3; top.distribution = .fill
         top.detachesHiddenViews = true
         pathButton.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -200,6 +201,21 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         view.window?.makeFirstResponder(pathField); pathField.selectText(nil)
     }
     @objc func copyDirectoryPath() { activate(); owner?.copyPaths([directory]) }
+    @objc private func openTerminal() {
+        activate()
+        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            owner?.showError(NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                                    userInfo: [NSLocalizedDescriptionKey: "找不到系统终端应用。请确认 Terminal.app 已安装。"]))
+            return
+        }
+        // Pass the directory as a file URL, without interpolating it into a shell command.
+        NSWorkspace.shared.open([directory], withApplicationAt: application,
+                                configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+            if let error {
+                DispatchQueue.main.async { self?.owner?.showError(error) }
+            }
+        }
+    }
     @objc private func copyAndEditDirectoryPath() {
         copyDirectoryPath()
         focusPath()
