@@ -428,7 +428,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
     @objc private func placeChosen(_ sender: NSMenuItem) { activate(); navigate(to: sender.representedObject as! URL) }
     func contextMenu() -> NSMenu {
         let menu = NSMenu()
-        for (title, action) in [("打开", #selector(openSelection)), ("快速预览", #selector(preview)), ("在 Finder 中显示", #selector(reveal)), ("复制到另一栏", #selector(copyAcross)), ("移动到另一栏", #selector(moveAcross)), ("复制", #selector(copyFiles)), ("复制完整路径", #selector(copyFilePaths)), ("粘贴", #selector(pasteFiles)), ("重命名…", #selector(rename)), ("新建文件夹…", #selector(newFolder)), ("移到废纸篓…", #selector(trash))] {
+        for (title, action) in [("打开", #selector(openSelection)), ("快速预览", #selector(preview)), ("在 Finder 中显示", #selector(reveal)), ("复制到另一栏", #selector(copyAcross)), ("移动到另一栏", #selector(moveAcross)), ("复制", #selector(copyFiles)), ("复制文件名（含扩展名）", #selector(copyFileNames)), ("复制完整路径", #selector(copyFilePaths)), ("粘贴", #selector(pasteFiles)), ("重命名…", #selector(rename)), ("新建文件夹…", #selector(newFolder)), ("移到废纸篓…", #selector(trash))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: ""); item.target = self
             item.isEnabled = action == #selector(newFolder) || action == #selector(pasteFiles) || !selectedURLs.isEmpty
             menu.addItem(item)
@@ -441,6 +441,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
     @objc func moveAcross() { owner?.transferAcross(mode: .move) }
     @objc func copyFiles() { owner?.copySelection() }
     @objc func copyFilePaths() { activate(); owner?.copyPaths(selectedURLs) }
+    @objc func copyFileNames() { activate(); owner?.copyNames(selectedURLs) }
     @objc func pasteFiles() { owner?.pasteSelection() }
     @objc func rename() { owner?.renameSelection() }
     @objc func newFolder() { owner?.createFolder() }

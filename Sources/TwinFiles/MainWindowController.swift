@@ -138,11 +138,17 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         showOperationStatus("已复制 \(activePane.selectedURLs.count) 个项目；⌘V 粘贴，⌘⌥V 移动到当前栏")
     }
     func copyPaths(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
+        copyText(urls.map(\.path), label: "完整路径")
+    }
+    func copyNames(_ urls: [URL]) {
+        copyText(urls.map(\.lastPathComponent), label: "文件名")
+    }
+    private func copyText(_ values: [String], label: String) {
+        guard !values.isEmpty else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
+        NSPasteboard.general.setString(values.joined(separator: "\n"), forType: .string)
         clipboardMove = false; clipboardChangeCount = NSPasteboard.general.changeCount
-        if !busy { showOperationStatus("已复制 \(urls.count) 个完整路径") }
+        if !busy { showOperationStatus("已复制 \(values.count) 个\(label)") }
     }
     @objc func cutSelection() { copySelection(); clipboardMove = true; showOperationStatus("已标记移动；在目标目录按 ⌘V 完成移动") }
     @objc func pasteSelection() { paste(forceMove: false) }
