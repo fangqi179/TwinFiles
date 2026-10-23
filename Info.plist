@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>TwinFiles</string>
+<key>CFBundleDisplayName</key><string>TwinFiles</string>
+<key>CFBundleIdentifier</key><string>dev.local.TwinFiles</string>
+<key>CFBundleExecutable</key><string>TwinFiles</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSDesktopFolderUsageDescription</key><string>TwinFiles 需要读取桌面，以便浏览和整理你选择的文件。</string>
+<key>NSDocumentsFolderUsageDescription</key><string>TwinFiles 需要读取文稿，以便浏览和整理你选择的文件。</string>
+<key>NSDownloadsFolderUsageDescription</key><string>TwinFiles 需要读取下载目录，以便浏览和整理你选择的文件。</string>
+<key>NSRemovableVolumesUsageDescription</key><string>TwinFiles 需要访问你选择的外接磁盘。</string>
+<key>NSNetworkVolumesUsageDescription</key><string>TwinFiles 需要访问你选择的网络磁盘。</string>
+</dict></plist>

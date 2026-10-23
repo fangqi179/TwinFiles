@@ -1,0 +1,108 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_VERSION: 1.0.${{ github.run_number }}
+  APP_BUILD: ${{ github.run_number }}.${{ github.run_attempt }}
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    name: Test and build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Test
+        shell: bash
+        run: |
+          export CLANG_MODULE_CACHE_PATH="$PWD/.build/clang-cache"
+          export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
+          swift test --disable-sandbox --cache-path "$PWD/.build/cache" \
+            --config-path "$PWD/.build/config" --security-path "$PWD/.build/security"
+
+      - name: Build and verify app
+        env:
+          APP_ARCH: ${{ matrix.arch }}
+        run: |
+          zsh scripts/build-app.sh
+          lipo -verify_arch "$APP_ARCH" dist/TwinFiles.app/Contents/MacOS/TwinFiles
+
+      - name: Archive app
+        env:
+          APP_ARCH: ${{ matrix.arch }}
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/TwinFiles.app "dist/TwinFiles-${APP_VERSION}-${APP_ARCH}.zip"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: app-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: app-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish release and checksums
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${APP_VERSION}"
+          test -f "TwinFiles-${APP_VERSION}-arm64.zip"
+          test -f "TwinFiles-${APP_VERSION}-x86_64.zip"
+          sha256sum ./*.zip > SHA256SUMS.txt
+          cat > release-notes.md <<'NOTES'
+          ## 下载与安装
+          - Apple Silicon（M 系列芯片）：下载 `arm64.zip`。
+          - Intel Mac：下载 `x86_64.zip`。
+          - 解压后将 `TwinFiles.app` 拖入“应用程序”，需要 macOS 13 或更高版本。
+          - 应用采用 ad-hoc 签名，未经过 Apple 公证；首次打开可能需要在系统设置的“隐私与安全性”中允许。
+          - `SHA256SUMS.txt` 提供下载文件的 SHA-256 校验值。
+          NOTES
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$RELEASE_COMMIT" \
+              --title "TwinFiles $APP_VERSION" --draft \
+              --notes-file release-notes.md --generate-notes
+          fi
+          gh release upload "$tag" ./*.zip SHA256SUMS.txt --clobber
+          gh release edit "$tag" --draft=false
