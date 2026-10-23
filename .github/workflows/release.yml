@@ -45,7 +45,7 @@ jobs:
           APP_ARCH: ${{ matrix.arch }}
         run: |
           zsh scripts/build-app.sh
-          lipo -verify_arch "$APP_ARCH" dist/TwinFiles.app/Contents/MacOS/TwinFiles
+          lipo dist/TwinFiles.app/Contents/MacOS/TwinFiles -verify_arch "$APP_ARCH"
 
       - name: Archive app
         env:
