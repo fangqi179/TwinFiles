@@ -37,4 +37,13 @@ Use XCTest, with `*Tests.swift` files and descriptive `test...` methods. Filesys
 
 ## Commit & Pull Request Guidelines
 
-Git history is unavailable in this checkout, so no established commit convention can be verified. Use concise, imperative subjects describing one focused change. PRs should explain the behavior change, link relevant issues, report validation commands and results, and include screenshots for UI changes. Preserve collision handling that retains existing files and guards against recursive transfers.
+Use concise, imperative commit subjects describing one focused change, matching existing history. PRs should explain the behavior change, link relevant issues, report validation commands and results, and include screenshots for UI changes. Preserve collision handling that retains existing files and guards against recursive transfers.
+
+## Required Delivery Workflow
+
+The user has authorized GitHub synchronization and App packaging for future feature improvements and bug fixes. Complete these steps without asking for the same authorization again:
+
+1. Validate the change with appropriate tests and manual UI checks, then build `dist/TwinFiles.app` with `zsh scripts/build-app.sh`.
+2. Commit the task changes and push `main` to `git@github.com:fangqi179/TwinFiles.git`. Preserve unrelated work and remote history.
+3. Monitor `.github/workflows/release.yml` through completion. It tests and packages Apple Silicon and Intel apps, then publishes version `1.0.<run_number>` with ZIP downloads and SHA-256 checksums.
+4. Verify the Release and both architecture assets; fix failures before reporting completion. Include the Release link in the final response. If blocked, report what remains unpublished.
