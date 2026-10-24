@@ -45,6 +45,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
     private let pathButton = NSButton()
     private let pathField = NSTextField()
     private let search = NSSearchField()
+    private let disks = NSPopUpButton(frame: .zero, pullsDown: true)
     private let status = NSTextField(labelWithString: "")
     private let typeFilter = NSPopUpButton()
     private let extensionFilter = NSComboBox()
@@ -70,7 +71,11 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
-    deinit { monitor?.cancel() }
+    deinit {
+        monitor?.cancel()
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
 
     override func loadView() {
         view = NSView()
@@ -114,11 +119,22 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         pathButton.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         pathField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let headerStack = NSStackView(views: [top, search])
+        disks.controlSize = .small; disks.font = .systemFont(ofSize: 11)
+        disks.setAccessibilityLabel("磁盘与外接设备")
+        disks.toolTip = "选择磁盘，在当前栏浏览；接入或移除磁盘时自动更新"
+        disks.widthAnchor.constraint(equalToConstant: 158).isActive = true
+        NotificationCenter.default.addObserver(self, selector: #selector(updateDisks), name: MountedVolumes.didChange, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(volumeUnmounted(_:)), name: NSWorkspace.didUnmountNotification, object: nil)
+        updateDisks()
+        let navigation = NSStackView(views: [disks, search])
+        navigation.spacing = 6; navigation.distribution = .fill
+        search.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        search.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let headerStack = NSStackView(views: [top, navigation])
         headerStack.orientation = .vertical; headerStack.alignment = .leading; headerStack.spacing = 4; headerStack.distribution = .fill
         header.addSubview(headerStack)
         headerStack.translatesAutoresizingMaskIntoConstraints = false
-        for child in [top, search] { child.widthAnchor.constraint(equalTo: headerStack.widthAnchor).isActive = true }
+        for child in [top, navigation] { child.widthAnchor.constraint(equalTo: headerStack.widthAnchor).isActive = true }
         NSLayoutConstraint.activate([
             top.heightAnchor.constraint(equalToConstant: 24), search.heightAnchor.constraint(equalToConstant: 22),
             headerStack.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 8), headerStack.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -8),
@@ -243,6 +259,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
                     let selection = self.directory == url ? Set(self.selectedURLs) : []
                     if self.directory != url { self.search.stringValue = ""; self.visible = []; self.table.reloadData() }
                     self.directory = url; self.entries = entries; self.icons.removeAll(keepingCapacity: true)
+                    self.updateDisks()
                     self.updateExtensionChoices()
                     if record && (self.historyIndex < 0 || self.history[self.historyIndex] != url) {
                         self.history = Array(self.history.prefix(self.historyIndex + 1)); self.history.append(url); self.historyIndex = self.history.count - 1
@@ -263,6 +280,36 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         }
     }
     @objc func reload() { navigate(to: directory, record: false) }
+    @objc private func updateDisks() {
+        disks.removeAllItems()
+        disks.addItem(withTitle: "磁盘与外接设备")
+        let volumes = MountedVolumes.shared.volumes
+        let current = volumes.filter { $0.contains(directory) }.max { $0.url.path.count < $1.url.path.count }
+        for isInternal in [false, true] {
+            let group = volumes.filter { $0.isInternal == isInternal }
+            let heading = NSMenuItem(title: isInternal ? "本机磁盘" : "外接磁盘与其他卷", action: nil, keyEquivalent: "")
+            heading.isEnabled = false; disks.menu?.addItem(heading)
+            if group.isEmpty {
+                let empty = NSMenuItem(title: isInternal ? "暂无本机磁盘" : "未检测到已挂载的外接磁盘", action: nil, keyEquivalent: "")
+                empty.isEnabled = false; disks.menu?.addItem(empty)
+            }
+            for volume in group {
+                let item = NSMenuItem(title: volume.name, action: #selector(placeChosen(_:)), keyEquivalent: "")
+                item.target = self; item.representedObject = volume.url; item.toolTip = volume.url.path
+                item.image = NSImage(systemSymbolName: isInternal ? "internaldrive" : "externaldrive", accessibilityDescription: nil)
+                item.state = volume.url == current?.url ? .on : .off
+                disks.menu?.addItem(item)
+            }
+            if !isInternal { disks.menu?.addItem(.separator()) }
+        }
+    }
+    @objc private func volumeUnmounted(_ notification: Notification) {
+        guard let url = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+        let volume = MountedVolume(url: url, name: "", isInternal: false)
+        if volume.contains(directory) {
+            navigate(to: FileManager.default.homeDirectoryForCurrentUser)
+        }
+    }
     @objc func back() { activate(); guard historyIndex > 0 else { return }; historyIndex -= 1; navigate(to: history[historyIndex], record: false) }
     @objc func forward() { activate(); guard historyIndex + 1 < history.count else { return }; historyIndex += 1; navigate(to: history[historyIndex], record: false) }
     @objc func goUp() { activate(); navigate(to: directory.deletingLastPathComponent()) }
@@ -429,8 +476,7 @@ final class PaneController: NSViewController, NSTableViewDataSource, NSTableView
         menu.addItem(.separator())
         let home = FileManager.default.homeDirectoryForCurrentUser
         var places: [(String, URL)] = [("个人目录", home), ("桌面", home.appendingPathComponent("Desktop")), ("下载", home.appendingPathComponent("Downloads")), ("文稿", home.appendingPathComponent("Documents")), ("应用程序", URL(fileURLWithPath: "/Applications")), ("磁盘根目录", URL(fileURLWithPath: "/"))]
-        let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [.volumeIsBrowsableKey], options: [.skipHiddenVolumes]) ?? []
-        places += volumes.filter { $0.path != "/" }.map { ($0.lastPathComponent, $0) }
+        places += MountedVolumes.shared.volumes.filter { $0.url.path != "/" }.map { ($0.name, $0.url) }
         for (name, url) in places {
             let item = NSMenuItem(title: name, action: #selector(placeChosen(_:)), keyEquivalent: ""); item.target = self; item.representedObject = url; menu.addItem(item)
         }
